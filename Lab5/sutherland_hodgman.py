@@ -1,54 +1,73 @@
 import glfw
 from OpenGL.GL import *
 from OpenGL.GLU import *
+import numpy as np
 
 win_width, win_height = 800, 800
 
-def sutherland_hodgman_clip(subject_polygon, clip_polygon):
-    def inside(p, edge_start, edge_end):
-        return (edge_end[0] - edge_start[0]) * (p[1] - edge_start[1]) > (edge_end[1] - edge_start[1]) * (p[0] - edge_start[0])
+original_polygon = [(100, 150), (200, 250), (300, 200), (350, 150), (250, 100)]
+clip_rect = [150, 100, 300, 250]  # [xmin, ymin, xmax, ymax]
 
-    def compute_intersection(p1, p2, edge_start, edge_end):
-        x1, y1 = p1
-        x2, y2 = p2
-        x3, y3 = edge_start
-        x4, y4 = edge_end
-
-        denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-        if denom == 0:
-            return None
-        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
-        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
-
-    def clip(subject_polygon, edge_start, edge_end):
+def sutherland_hodgman_clip(polygon, clip_rect):
+    def clip_polygon(poly, edge):
         clipped_polygon = []
-        for i in range(len(subject_polygon)):
-            current_vertex = subject_polygon[i]
-            prev_vertex = subject_polygon[i - 1]
-            inside_current = inside(current_vertex, edge_start, edge_end)
-            inside_prev = inside(prev_vertex, edge_start, edge_end)
-            if inside_current:
-                if not inside_prev:
-                    intersection = compute_intersection(prev_vertex, current_vertex, edge_start, edge_end)
-                    clipped_polygon.append(intersection)
-                clipped_polygon.append(current_vertex)
-            elif inside_prev:
-                intersection = compute_intersection(prev_vertex, current_vertex, edge_start, edge_end)
-                clipped_polygon.append(intersection)
+        x0, y0 = poly[-1]
+        for x1, y1 in poly:
+            if inside(x1, y1, edge):
+                if not inside(x0, y0, edge):
+                    clipped_polygon.append(intersect(x0, y0, x1, y1, edge))
+                clipped_polygon.append((x1, y1))
+            elif inside(x0, y0, edge):
+                clipped_polygon.append(intersect(x0, y0, x1, y1, edge))
+            x0, y0 = x1, y1
         return clipped_polygon
 
-    clipped_polygon = subject_polygon[:]
-    for i in range(len(clip_polygon)):
-        edge_start = clip_polygon[i]
-        edge_end = clip_polygon[(i + 1) % len(clip_polygon)]
-        clipped_polygon = clip(clipped_polygon, edge_start, edge_end)
-    
-    return clipped_polygon
+    def inside(x, y, edge):
+        if edge == 'left':
+            return x >= xmin
+        elif edge == 'right':
+            return x <= xmax
+        elif edge == 'bottom':
+            return y >= ymin
+        elif edge == 'top':
+            return y <= ymax
 
-def draw_shape(points):
-    glBegin(GL_LINE_LOOP)
-    for x, y in points:
+    def intersect(x0, y0, x1, y1, edge):
+        if edge == 'left':
+            x = xmin
+            y = y0 + (xmin - x0) * (y1 - y0) / (x1 - x0)
+        elif edge == 'right':
+            x = xmax
+            y = y0 + (xmax - x0) * (y1 - y0) / (x1 - x0)
+        elif edge == 'bottom':
+            y = ymin
+            x = x0 + (ymin - y0) * (x1 - x0) / (y1 - y0)
+        elif edge == 'top':
+            y = ymax
+            x = x0 + (ymax - y0) * (x1 - x0) / (y1 - y0)
+        return (x, y)
+
+    xmin, ymin, xmax, ymax = clip_rect
+    edges = ['left', 'right', 'bottom', 'top']
+    output_polygon = polygon
+    for edge in edges:
+        output_polygon = clip_polygon(output_polygon, edge)
+    return output_polygon
+
+def draw_polygon(polygon):
+    glBegin(GL_POLYGON)
+    for x, y in polygon:
         glVertex2f(x, y)
+    glEnd()
+
+def draw_clipping_region():
+    xmin, ymin, xmax, ymax = clip_rect
+    glColor3f(0, 1, 0)  # Green color
+    glBegin(GL_LINE_LOOP)
+    glVertex2f(xmin, ymin)
+    glVertex2f(xmax, ymin)
+    glVertex2f(xmax, ymax)
+    glVertex2f(xmin, ymax)
     glEnd()
 
 def main():
@@ -67,32 +86,20 @@ def main():
     glLoadIdentity()
     gluOrtho2D(0, win_width, 0, win_height)
     
-    # Example polygon and clipping window
-    subject_polygon = [(150, 150), (250, 150), (250, 250), (150, 250)]
-    clip_polygon = [(100, 100), (200, 100), (200, 200), (100, 200)]
-    
     while not glfw.window_should_close(window):
         glClear(GL_COLOR_BUFFER_BIT)
         
-        # Draw clipping window
-        glColor3f(0.0, 1.0, 0.0)  # Green color for clipping window
-        draw_shape(clip_polygon)
+        draw_clipping_region()
         
-        # Draw original polygon
-        glColor3f(1.0, 1.0, 1.0)  # White color for original polygon
-        draw_shape(subject_polygon)
+        glColor3f(1, 0, 0)  # Red color
+        draw_polygon(original_polygon)
         
-        # Draw clipped polygon using Sutherland-Hodgman
-        clipped_polygon = sutherland_hodgman_clip(subject_polygon, clip_polygon)
+        glColor3f(0, 0, 1)  # Blue color
+        clipped_polygon = sutherland_hodgman_clip(original_polygon, clip_rect)
         if clipped_polygon:
-            glColor3f(1.0, 0.0, 0.0)  # Red color for clipped polygon
-            draw_shape(clipped_polygon)
-            glColor3f(1.0, 1.0, 1.0)  # Reset to white
+            draw_polygon(clipped_polygon)
         
-        # Swap front and back buffers
         glfw.swap_buffers(window)
-        
-        # Poll for and process events
         glfw.poll_events()
     
     glfw.terminate()

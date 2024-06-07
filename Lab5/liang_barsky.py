@@ -1,59 +1,79 @@
 import glfw
 from OpenGL.GL import *
 from OpenGL.GLU import *
+import numpy as np
 
 win_width, win_height = 800, 800
 
-def liang_barsky_clip(x0, y0, x1, y1, xmin, ymin, xmax, ymax):
+original_polygon = [(100, 150), (200, 250), (300, 200), (350, 150), (250, 100)]
+clip_rect = [150, 100, 300, 250]  # [xmin, ymin, xmax, ymax]
+
+def liang_barsky_clip(x0, y0, x1, y1, clip_rect):
+    xmin, ymin, xmax, ymax = clip_rect
     dx = x1 - x0
     dy = y1 - y0
+
     p = [-dx, dx, -dy, dy]
     q = [x0 - xmin, xmax - x0, y0 - ymin, ymax - y0]
 
-    u1, u2 = 0.0, 1.0
+    u1 = 0.0
+    u2 = 1.0
 
     for i in range(4):
         if p[i] == 0:
             if q[i] < 0:
-                return None  # Parallel and outside
+                return None
         else:
             t = q[i] / p[i]
             if p[i] < 0:
-                if t > u2:
-                    return None  # No intersection
-                u1 = max(u1, t)
+                if t > u1:
+                    u1 = t
             else:
-                if t < u1:
-                    return None  # No intersection
-                u2 = min(u2, t)
+                if t < u2:
+                    u2 = t
 
     if u1 > u2:
-        return None  # No intersection
-    
-    x_clip_start = x0 + u1 * dx
-    y_clip_start = y0 + u1 * dy
-    x_clip_end = x0 + u2 * dx
-    y_clip_end = y0 + u2 * dy
-    
-    return (x_clip_start, y_clip_start, x_clip_end, y_clip_end)
+        return None
 
-def draw_line(x0, y0, x1, y1):
-    glBegin(GL_LINES)
-    glVertex2f(x0, y0)
-    glVertex2f(x1, y1)
+    clipped_x0 = x0 + u1 * dx
+    clipped_y0 = y0 + u1 * dy
+    clipped_x1 = x0 + u2 * dx
+    clipped_y1 = y0 + u2 * dy
+
+    return (clipped_x0, clipped_y0, clipped_x1, clipped_y1)
+
+def clip_polygon_with_liang_barsky(polygon, clip_rect):
+    clipped_polygon = []
+    for i in range(len(polygon)):
+        x0, y0 = polygon[i]
+        x1, y1 = polygon[(i + 1) % len(polygon)]
+        clipped_line = liang_barsky_clip(x0, y0, x1, y1, clip_rect)
+        if clipped_line:
+            clipped_polygon.append((clipped_line[0], clipped_line[1]))
+            clipped_polygon.append((clipped_line[2], clipped_line[3]))
+    return clipped_polygon
+
+def draw_polygon(polygon):
+    glBegin(GL_POLYGON)
+    for x, y in polygon:
+        glVertex2f(x, y)
     glEnd()
 
-def draw_shape(points):
+def draw_clipping_region():
+    xmin, ymin, xmax, ymax = clip_rect
+    glColor3f(0, 1, 0)  # Green color
     glBegin(GL_LINE_LOOP)
-    for x, y in points:
-        glVertex2f(x, y)
+    glVertex2f(xmin, ymin)
+    glVertex2f(xmax, ymin)
+    glVertex2f(xmax, ymax)
+    glVertex2f(xmin, ymax)
     glEnd()
 
 def main():
     if not glfw.init():
         return
     
-    window = glfw.create_window(win_width, win_height, "Liang-Barsky Line Clipping", None, None)
+    window = glfw.create_window(win_width, win_height, "Liang-Barsky Polygon Clipping", None, None)
     if not window:
         glfw.terminate()
         return
@@ -65,32 +85,20 @@ def main():
     glLoadIdentity()
     gluOrtho2D(0, win_width, 0, win_height)
     
-    # Example line and clipping window
-    x0, y0 = 50, 50
-    x1, y1 = 300, 300
-    xmin, ymin = 100, 100
-    xmax, ymax = 200, 200
-    
     while not glfw.window_should_close(window):
         glClear(GL_COLOR_BUFFER_BIT)
         
-        # Draw clipping window
-        draw_shape([(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)])
+        draw_clipping_region()
         
-        # Draw original line
-        draw_line(x0, y0, x1, y1)
+        glColor3f(1, 0, 0)  # Red color
+        draw_polygon(original_polygon)
         
-        # Draw clipped line using Liang-Barsky
-        clipped_line = liang_barsky_clip(x0, y0, x1, y1, xmin, ymin, xmax, ymax)
-        if clipped_line:
-            glColor3f(1.0, 0.0, 0.0)  # Red color for clipped line
-            draw_line(clipped_line[0], clipped_line[1], clipped_line[2], clipped_line[3])
-            glColor3f(1.0, 1.0, 1.0)  # Reset to white
+        glColor3f(0, 0, 1)  # Blue color
+        clipped_polygon = clip_polygon_with_liang_barsky(original_polygon, clip_rect)
+        if clipped_polygon:
+            draw_polygon(clipped_polygon)
         
-        # Swap front and back buffers
         glfw.swap_buffers(window)
-        
-        # Poll for and process events
         glfw.poll_events()
     
     glfw.terminate()
