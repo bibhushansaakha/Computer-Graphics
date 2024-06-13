@@ -1,4 +1,5 @@
-# Computer-Graphics
+# Computer-Graphics 
+This Repository contains all the Lab files along with Lab reports of COMP-342, Computer Grapihcs Course of 6th Semester Computer Engineering & 5th Semester Computer Science in Kathmandu University.
 
 # Lab 1
 This lab work focuses on utilizing C++, the openFrameworks library, and OpenGL to create a visual representation of the Nepal Tourism Board (NTB) logo. The project aims to demonstrate fundamental graphics rendering techniques, including geometric manipulation within the openFrameworks environment. By leveraging these tools, the objective of this lab work is to recreate the NTB logo.
