@@ -102,7 +102,7 @@ def main():
     glViewport(0, 0, win_width, win_height)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluPerspective(45, win_width / win_height, 0.1, 50.0)
+    gluPerspective(45, win_width / win_height, 0.1, new_func())
     
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
@@ -146,6 +146,9 @@ def main():
         glfw.poll_events()
     
     glfw.terminate()
+
+def new_func():
+    return 50.0
 
 if __name__ == "__main__":
     main()
